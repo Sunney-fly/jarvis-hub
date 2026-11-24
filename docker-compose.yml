@@ -1,0 +1,168 @@
+name: jarvis
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-pgvector/pgvector:pg16}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-jarvis}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在 .env 中设置 POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-jarvis}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jarvis} -d ${POSTGRES_DB:-jarvis}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+    # 不暴露宿主机端口，仅 compose 内网可见
+
+  searxng:
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+    volumes:
+      - ./tools/searxng/settings.yml:/etc/searxng/settings.yml:ro
+      - searxng_data:/etc/searxng
+    logging: *default-logging
+
+  radicale:
+    image: tomsquest/docker-radicale:latest
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+    volumes:
+      - ./tools/radicale:/config
+      - radicale_data:/data
+    ports:
+      - "5232:5232"   # 手机 DAVx5 日历同步用
+    logging: *default-logging
+
+  browser:
+    profiles: ["heavy"]   # 内存大户（约 600MB+），2C2G 机器不启动；本地/大内存用 --profile heavy
+    build: ./tools/browser
+    restart: unless-stopped
+    shm_size: 1gb
+    mem_limit: 1g
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+    logging: *default-logging
+
+  core:
+    build: ./core
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-jarvis}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-jarvis}
+      SEARXNG_URL: http://searxng:8080
+      RADICALE_URL: http://radicale:5232/
+      BROWSER_URL: http://browser:8080
+      PYTHONPATH: /app/src   # 让挂载的源码优先于 site-packages 里的安装副本（改代码只需 restart）
+    volumes:
+      - ./tools.d:/app/tools.d
+      - ./mcp.json:/app/mcp.json:ro
+      - ./core/src:/app/src:ro   # 源码挂载：改代码后 restart core 即生效，无需重建镜像
+      - ./release:/app/release:rw  # App 更新包目录（scripts/publish-app.ps1 写入；HTTP 发布端点也要写）
+      - /var/www/nanmount/download:/app/download:rw  # 网站下载目录（HTTP 发布时一起写）
+    ports:
+      - "${CORE_BIND:-8000}:8000"   # 中枢 API（语音 App/脚本调用）；VPS 上建议绑定 Tailscale IP，如 100.x.x.x:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      searxng:
+        condition: service_started
+      radicale:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=5)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    logging: *default-logging
+
+  webui:
+    image: ${WEBUI_IMAGE:-ghcr.io/open-webui/open-webui:v0.5.20}
+    restart: unless-stopped
+    environment:
+      OPENAI_API_BASE_URL: http://core:8000/v1
+      OPENAI_API_KEY: ${AUTH_TOKEN}
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY}
+      ENABLE_SIGNUP: ${WEBUI_ENABLE_SIGNUP:-true}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - webui_data:/app/backend/data
+    depends_on:
+      core:
+        condition: service_healthy
+    ports:
+      - "3000:8080"
+    logging: *default-logging
+
+  uptime-kuma:
+    profiles: ["heavy"]   # 监控台约 200MB，2C2G 机器不启动
+    image: louislam/uptime-kuma:1
+    restart: unless-stopped
+    volumes:
+      - kuma_data:/app/data
+    ports:
+      - "3001:3001"
+    logging: *default-logging
+
+  # 可选：Tailscale HTTPS（解锁手机浏览器麦克风）
+  # 用法：bash scripts/tailscale-https.sh <主机名>.<tailnet>.ts.net
+  caddy:
+    profiles: ["https"]
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      CADDY_HOST: ${CADDY_HOST:-localhost}
+    volumes:
+      - ./tools/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /etc/tailscale-certs:/certs:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - webui
+    logging: *default-logging
+
+  # 中枢 API 的 HTTPS 入口（Let's Encrypt 证书 + 手机 App 直连）
+  # 证书由宿主机 acme.sh 申请到 /etc/jarvis-certs，用 bash scripts/issue-cert.sh <域名> <AK> <SK> 部署
+  tls:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      JARVIS_HOST: ${JARVIS_HOST:-localhost}
+    volumes:
+      - ./tools/caddy/Caddyfile.jarvis:/etc/caddy/Caddyfile:ro
+      - /etc/jarvis-certs:/certs:ro
+      - caddy_tls_data:/data
+      - caddy_tls_config:/config
+    ports:
+      - "41777:41777"
+    depends_on:
+      - core
+    logging: *default-logging
+
+volumes:
+  pg_data:
+  searxng_data:
+  radicale_data:
+  webui_data:
+  kuma_data:
+  caddy_data:
+  caddy_config:
+  caddy_tls_data:
+  caddy_tls_config:

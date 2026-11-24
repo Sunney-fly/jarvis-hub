@@ -1,0 +1,14 @@
+# 示例配置工具：随机「一言」语录（免费公开 API，无需 key）
+# 这是"第一层：声明式工具"的演示。禁用方法：删除本文件后 POST /v1/tools/reload
+# 自己加工具：复制本文件改字段即可，格式说明见 docs/TOOLS.md
+name: hitokoto
+description: 获取一句随机的「一言」语录（动画/文学/哲学等分类），演示用公开 API 工具
+parameters:
+  type: object
+  properties: {}
+kind: http
+http:
+  url: https://v1.hitokoto.cn/?encode=json
+  method: GET
+  response_path: "."
+  timeout: 15

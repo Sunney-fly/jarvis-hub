@@ -1,0 +1,13 @@
+# 中枢 API 的 HTTPS 入口（手机 App 使用）
+# 证书由宿主机 acme.sh 通过 Let's Encrypt DNS 验证申请，挂载在 /certs
+# JARVIS_HOST 由 /root/jarvis-hub/.env 提供
+
+{
+	admin off
+	auto_https off
+}
+
+https://{$JARVIS_HOST}:41777 {
+	tls /certs/fullchain.pem /certs/privkey.pem
+	reverse_proxy core:8000
+}

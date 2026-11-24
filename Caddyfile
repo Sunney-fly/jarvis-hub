@@ -1,0 +1,12 @@
+# Caddy 配置：Tailscale HTTPS（手机浏览器麦克风必须 https 才能用）
+# CADDY_HOST 由 scripts/tailscale-https.sh 写入 .env
+# 证书由宿主机 `tailscale cert` 生成，挂载到 /certs
+
+{
+	admin off
+}
+
+https://{$CADDY_HOST} {
+	tls /certs/fullchain.pem /certs/privkey.pem
+	reverse_proxy webui:8080
+}

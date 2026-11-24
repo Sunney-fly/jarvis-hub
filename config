@@ -1,0 +1,19 @@
+# Radicale CalDAV 日历服务配置（tomsquest/docker-radicale 镜像）
+# 用户账号在 /config/users（htpasswd 格式，由 scripts/deploy.sh 自动生成）
+
+[server]
+hosts = 0.0.0.0:5232
+
+[auth]
+type = htpasswd
+htpasswd_filename = /config/users
+htpasswd_encryption = bcrypt
+
+[storage]
+filesystem_folder = /data/collections
+
+[rights]
+# 默认：登录用户可读写自己的日历
+
+[logging]
+level = warning

@@ -1,0 +1,16 @@
+.env
+backups/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+pytest-cache-files-*/
+.pytest-tmp/
+.pytest-bt*/
+.tmp/
+*.egg-info/
+dist/
+build/
+.DS_Store
+tools/radicale/users

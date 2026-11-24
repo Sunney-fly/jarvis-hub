@@ -1,0 +1,21 @@
+# SearXNG 配置：内部搜索服务（只被 core 调用，不对外开放）
+# 使用默认引擎集（google 默认已禁用）；国内环境可用 bing/baidu 等。
+use_default_settings: true
+
+general:
+  instance_name: "jarvis-search"
+  debug: false
+
+server:
+  secret_key: "jarvis-internal-search-change-me"
+  limiter: false          # 内部使用，关闭限流
+  image_proxy: false
+  bind_address: "0.0.0.0"
+  port: 8080
+
+search:
+  formats:
+    - html
+    - json
+  default_lang: "zh-CN"
+  safe_search: 0
