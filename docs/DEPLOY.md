@@ -49,7 +49,7 @@ sudo apt-get update && sudo apt-get install -y apache2-utils
 在**本地 Windows** 上（PowerShell）：
 
 ```powershell
-cd D:\Users\sun\DSH
+cd <repo>
 pwsh -File jarvis-hub\scripts\upload.ps1 -Ip <VPS的Tailscale IP>
 ```
 

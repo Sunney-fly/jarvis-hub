@@ -42,7 +42,7 @@ APK 仍然不内置任何密钥。首次使用**直接注册**（用户名 + 密
 ```powershell
 cd <repo>
 $env:JAVA_HOME="D:\android\jbr"; $env:ANDROID_HOME="D:\SDK"
-C:\Users\sun\.gradle\wrapper\dists\gradle-9.5.0-bin\bvnork1r7n8i6kp5cnkibsc9q\gradle-9.5.0\bin\gradle.bat assembleDebug
+<gradle-home>\bin\gradle.bat assembleDebug
 
 $env:JARVIS_UPLOAD_SECRET = "<服务器 .env 的 APP_UPLOAD_SECRET>"
 cd <repo>
